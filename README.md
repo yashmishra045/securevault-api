@@ -13,11 +13,5 @@ A production-grade secrets management REST API — inspired by HashiCorp Vault.
 ## Tech Stack
 Python · FastAPI · PostgreSQL · Docker · SQLAlchemy · JWT · AES-256
 
-## Quick Start
-\`\`\`bash
-docker-compose up -d
-uvicorn app.main:app --reload --port 8000
-\`\`\`
-
 ## API Docs
 Visit: http://localhost:8000/docs
