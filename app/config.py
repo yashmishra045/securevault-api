@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "SecureVault API"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    DATABASE_URL: str = ""
+    DATABASE_URL: str = "" 
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30
