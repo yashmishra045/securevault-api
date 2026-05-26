@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status, Request
+﻿from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from passlib.context import CryptContext
@@ -29,9 +29,15 @@ async def register(body: RegisterRequest, request: Request, db: AsyncSession = D
         raise HTTPException(status_code=409, detail='Email already registered')
     role_result = await db.execute(select(Role).where(Role.name == 'viewer'))
     default_role = role_result.scalar_one_or_none()
-    user = User(id=str(uuid.uuid4()), email=body.email, hashed_password=hash_password(body.password), role_id=default_role.id if default_role else None)
+    user = User(
+        id=str(uuid.uuid4()),
+        email=body.email,
+        hashed_password=hash_password(body.password),
+        role_id=default_role.id if default_role else None
+    )
     db.add(user)
-    await db.flush()
+    await db.commit()
+    await db.refresh(user)
     await log_action(db=db, action=AuditAction.USER_CREATED, ip_address=get_client_ip(request), user_id=user.id)
     return user
 
@@ -48,8 +54,13 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     access_token = create_access_token(user.id, role_name)
     refresh_token = create_refresh_token(user.id)
     user.refresh_token = refresh_token
+    await db.commit()
     await log_action(db=db, action=AuditAction.USER_LOGIN, ip_address=get_client_ip(request), user_id=user.id)
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token, expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    )
 
 @router.post('/refresh', response_model=TokenResponse)
 async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
@@ -62,9 +73,15 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     new_access = create_access_token(user.id, role_name)
     new_refresh = create_refresh_token(user.id)
     user.refresh_token = new_refresh
-    return TokenResponse(access_token=new_access, refresh_token=new_refresh, expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+    await db.commit()
+    return TokenResponse(
+        access_token=new_access,
+        refresh_token=new_refresh,
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    )
 
 @router.post('/logout', status_code=204)
 async def logout(request: Request, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     current_user.refresh_token = None
+    await db.commit()
     await log_action(db=db, action=AuditAction.USER_LOGOUT, ip_address=get_client_ip(request), user_id=current_user.id)
